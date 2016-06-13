@@ -1,5 +1,6 @@
 """ Generic connection objects """
 
+import json
 from requests import Request, Session
 from urllib.parse import urlparse
 
@@ -16,12 +17,6 @@ class Connection(object):
     - Set the user agent for a request
 
     """
-    # def __init__(self, base_uri, path, userAgent = 'Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0'):
-    #     super(Connection, self).__init__()
-    #     self.base_uri = base_uri
-    #     self.path = path
-    #     self.userAgent = userAgent
-    #     self.headers = {'User-Agent': userAgent}
 
     def __init__(self, url, userAgent = 'Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0'):
         super(Connection, self).__init__()
@@ -46,45 +41,72 @@ class Connection(object):
         self.userAgent = userAgent
         self.headers = {'User-Agent': userAgent}
 
-    def __genericRequest(self, type = "GET", _data = {}, _headers = {}):
+        self.tempHeaders = {}
+        self.tempData = {}
+
+    def _genericRequest(self, type = "GET", _data = {}, _headers = {}, _path = ''):
         """
         A generic request to a web resource
 
         @param {string} type - The type of request being created
         @param {dictionary} _data - the data to be added to the request, if applicable
         @param {dictionary} _headers - the headers to be added to the request, if necessary
+        @param {string} _path - Optional path argument, which whill replace self.path
+
+        @return {response} response - a Requests response object
         """
 
-        # merge the headers into the already existing self.headers
-        # TODO make sure that _headers is a dictionary object
-        newHeaders = {**self.headers, **_headers}
+        # Check to make sure the headers are a dict
+        if isinstance(_headers, dict):
+            # merge the headers into the already existing self.headers
+            newHeaders = {**self.headers, **_headers}
+            self.tempHeaders = newHeaders
+        else: raise Exception('_header argument is not a dictionary')
+
+        # Check to make sure the data passed in is formatted as a dict
+        if isinstance(_data, dict):
+            self.tempData = _data
+        else: raise Exception('_data argument is not a dictionary')
+
+        # Check to make sure the passed in path is a string
+        # TODO make this more secure
+        if _path:
+            if isinstance(_path, str):
+                self.path = _path
+            else: raise Exception('_path must be a string value')
 
         s = Session()
 
         # Creating the request object
-        req = Request(type, self.address, data = _data, headers = newHeaders)
+        #TODO make this more secure, make sure the path is valid
+        fullUrl = self.scheme + '://' + self.location + self.path
+        req = Request(type, fullUrl, data = _data, headers = newHeaders)
         preppedRequest = req.prepare()
 
         # preppedRequest.body = "Some string value"
 
-        resonse = s.send(preppedRequest)
+        response = s.send(preppedRequest)
 
         return response
 
-    def get():
+    def head(self, _path = '', _headers = {}):
+        try:
+            return self._genericRequest(type = "HEAD", _path = _path, _headers = _headers)
+        except Exception:
+            print('Head request failed')
+
+    def get(self,  _path = '', _headers = {}):
+        try:
+            return self._genericRequest(type = "GET", _headers = _headers, _path = _path)
+        except Exception:
+            print('Get request failed')
+
+    def put(self, _path = '', _headers = {}, _data = {}):
         pass
 
-    def __testConnection(self, type, _data, _headers):
-        """
-        Test the connection of self.address with self.headers
-
-        @param {string} type - type of request, e.g. GET, POST, PUT, DELETE
-        @param {dictionary} _data - data to be sent with request
-        @param {dictionary} _headers - additional headers to send with request
-
-        @return {int} statusCode - the status code of the request
-        """
-        pass
+    def __clearTempData(self):
+        self.tempData = {}
+        self.tempHeaders = {}
 
 class URLFormatError(Exception):
     def __init__(self, value):
@@ -94,12 +116,24 @@ class URLFormatError(Exception):
         return repr(self.value)
 
 
+
+
+
+
+
+
 if __name__ == "__main__":
     try:
-        c = Connection("something")
+        c = Connection("https://www.w3.org")
         print(c.scheme)
         print(c.location)
         print(c.path)
         print(c.url)
+        # response = c._genericRequest(_path = '/standards/')
+        # print(response.url)
+        # print(response.headers)
+        response = c.get('/standards/')
+        print(response.url)
+        print(response.headers)
     except URLFormatError as err:
         print("an error has ocurred:", err.value)
